@@ -58,7 +58,7 @@ def get_ds(config, accelerator: Accelerator):
       
     assert max_len < config["seq_len"], f"seq len is too short: should be at least {max_len}"
     
-    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True)
+    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=8, pin_memory=True)
     val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True)
     
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt
