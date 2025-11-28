@@ -79,7 +79,7 @@ def train_model(config):
     
     Path(config["model_folder"]).mkdir(parents=True, exist_ok=True)
     
-    train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
+    train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config, accelerator)
     model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size())
     
     # if torch.cuda.device_count() > 1:
