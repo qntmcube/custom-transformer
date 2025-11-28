@@ -1,0 +1,7 @@
+Bootstrap: docker
+From: python
+
+%post 
+        pip install pathlib torch tensorboard datasets tokenizers tqdm numpy
+
+%runscript
