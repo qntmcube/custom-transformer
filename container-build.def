@@ -3,6 +3,6 @@ From: python
 
 %post
         pip install torch --index-url https://download.pytorch.org/whl/cu130
-        pip install pathlib tensorboard datasets tokenizers tqdm numpy
+        pip install pathlib tensorboard datasets tokenizers tqdm numpy accelerate
 
 %runscript
