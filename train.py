@@ -34,11 +34,12 @@ def get_or_build_tokenizer(config, ds, lang):
         
     return tokenizer
 
-def get_ds(config):
+def get_ds(config, accelerator: Accelerator):
     ds_raw = load_dataset("opus_books", f"{config['lang_src']}-{config['lang_tgt']}", split="train")
     
-    tokenizer_src = get_or_build_tokenizer(config, ds_raw, config["lang_src"])
-    tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config["lang_tgt"])
+    with accelerator.main_process_first():
+        tokenizer_src = get_or_build_tokenizer(config, ds_raw, config["lang_src"])
+        tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config["lang_tgt"])
     
     train_ds_size = int(0.9 * len(ds_raw))
     val_ds_size = len(ds_raw) - train_ds_size
@@ -94,7 +95,6 @@ def train_model(config):
     model, optimizer, train_dataloader, val_dataloader = accelerator.prepare(
         model, optimizer, train_dataloader, val_dataloader)
     
-    
     initial_epoch = 0
     global_step = 0
     if config["preload"]:
@@ -122,9 +122,7 @@ def train_model(config):
             
             # run data through model
             
-            enc_output = model.encode(encoder_input, encoder_mask)
-            dec_output = model.decode(decoder_input, enc_output, decoder_mask, encoder_mask)
-            projection = model.project(dec_output)
+            projection = model(encoder_input, decoder_input, encoder_mask, decoder_mask)
             
             # combining seq_len and batch dimension
             loss = loss_fn(projection.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1))
@@ -139,13 +137,15 @@ def train_model(config):
                         
             global_step += 1
             
-        tb_writer.flush()
-        run_validation(model, val_dataloader, config, lambda str: batch_iterator.write(str), tokenizer_src, tokenizer_tgt)
-            
-        model_filename = get_file_weights_path(config, f"{epoch:02d}")
         accelerator.wait_for_everyone() # Ensure all GPUs are done
         if accelerator.is_main_process:
             unwrapped_model = accelerator.unwrap_model(model)
+            
+            tb_writer.flush()
+            run_validation(unwrapped_model, val_dataloader, config, lambda str: batch_iterator.write(str), tokenizer_src, tokenizer_tgt)
+                
+            model_filename = get_file_weights_path(config, f"{epoch:02d}")
+            
             torch.save({
                 "epoch": epoch,
                 "model_state_dict": unwrapped_model.state_dict(),

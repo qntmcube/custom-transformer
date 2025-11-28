@@ -186,6 +186,11 @@ class Transformer(nn.Module):
     def project(self, x):
         return self.projection(x)
     
+    def forward(self, src, tgt, src_mask, tgt_mask):
+        enc_output = self.encode(src, src_mask)
+        dec_output = self.decode(tgt, enc_output, tgt_mask, src_mask)
+        return self.project(dec_output)
+    
 def build_transformer(src_vocab_size, tgt_vocab_size, seq_length, embedding_size = 512, ff_size = 2048, num_heads = 8, dropout = 0.1, num_enc_loops = 6, num_dec_loops = 6):
     src_embeddings = InputEmbeddings(src_vocab_size, embedding_size)
     tgt_embeddings = InputEmbeddings(tgt_vocab_size, embedding_size)
