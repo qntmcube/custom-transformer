@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.utils.tensorboard import SummaryWriter
 
+from accelerate import Accelerator
 from torch.utils.data import Dataset, DataLoader, random_split
 from datasets import load_dataset
 from tokenizers import Tokenizer
@@ -66,20 +67,33 @@ def get_model(config, src_vocab_size, tgt_vocab_size):
     return model
 
 def train_model(config):
-    device = torch.device("cuda" if torch.cuda.is_available() 
-                          else "mps" if torch.backends.mps.is_available() 
-                          else "cpu")
     
-    print(f"Using device {device}")
+    accelerator = Accelerator()
+    
+    # device = torch.device("cuda" if torch.cuda.is_available() 
+    #                       else "mps" if torch.backends.mps.is_available() 
+    #                       else "cpu")
+    
+    # print(f"Using device {device}")
     
     Path(config["model_folder"]).mkdir(parents=True, exist_ok=True)
     
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size())
+    
+    # if torch.cuda.device_count() > 1:
+    #     print(f"Using {torch.cuda.device_count()} GPUs!")
+    #     model = nn.DataParallel(model)
+    
+    # model.to(device)
     
     tb_writer = SummaryWriter(config["experiment_name"])
     
     optimizer = torch.optim.Adam(model.parameters(), lr=config["learning_rate"], eps=1e-9)
+    
+    model, optimizer, train_dataloader, val_dataloader = accelerator.prepare(
+        model, optimizer, train_dataloader, val_dataloader)
+    
     
     initial_epoch = 0
     global_step = 0
@@ -92,7 +106,7 @@ def train_model(config):
         optimizer.load_state_dict(state["optimizer_state_dict"])
         global_step = state["global_step"]
         
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.1).to(device)
+    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id("[PAD]"), label_smoothing=0.1)
     
     for epoch in range(initial_epoch, config["num_epochs"]):
         model.train()
@@ -100,11 +114,11 @@ def train_model(config):
         batch_iterator = tqdm.tqdm(train_dataloader, desc=f"Processing epoch {epoch:02d}")
 
         for batch in batch_iterator:
-            encoder_input = batch["encoder_input"].to(device)
-            decoder_input = batch["decoder_input"].to(device)
-            encoder_mask = batch["encoder_mask"].to(device)
-            decoder_mask = batch["decoder_mask"].to(device)
-            label = batch["label"].to(device)
+            encoder_input = batch["encoder_input"]
+            decoder_input = batch["decoder_input"]
+            encoder_mask = batch["encoder_mask"]
+            decoder_mask = batch["decoder_mask"]
+            label = batch["label"]
             
             # run data through model
             
@@ -118,7 +132,7 @@ def train_model(config):
             
             tb_writer.add_scalar("train loss", loss.item(), global_step)
             
-            loss.backward()
+            accelerator.backward(loss)
             
             optimizer.step()
             optimizer.zero_grad(set_to_none=True)
@@ -126,15 +140,18 @@ def train_model(config):
             global_step += 1
             
         tb_writer.flush()
-        run_validation(model, val_dataloader, config, device, lambda str: batch_iterator.write(str), tokenizer_src, tokenizer_tgt)
+        run_validation(model, val_dataloader, config, lambda str: batch_iterator.write(str), tokenizer_src, tokenizer_tgt)
             
         model_filename = get_file_weights_path(config, f"{epoch:02d}")
-        torch.save({
-            "epoch": epoch,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "global_step": global_step
-        }, model_filename)
+        accelerator.wait_for_everyone() # Ensure all GPUs are done
+        if accelerator.is_main_process:
+            unwrapped_model = accelerator.unwrap_model(model)
+            torch.save({
+                "epoch": epoch,
+                "model_state_dict": unwrapped_model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "global_step": global_step
+            }, model_filename)
         
 if __name__ == "__main__":
     config = get_config()
