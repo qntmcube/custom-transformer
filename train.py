@@ -130,7 +130,7 @@ def train_model(config):
             global_step += 1
             
         tb_writer.flush()
-        run_validation(model, val_dataloader, config, device, lambda str: batch_iterator.write(str), tokenizer_src, tokenizer_tgt)
+        run_validation(model.module, val_dataloader, config, device, lambda str: batch_iterator.write(str), tokenizer_src, tokenizer_tgt)
             
         model_filename = get_file_weights_path(config, f"{epoch:02d}")
         if epoch % 5 == 0:
