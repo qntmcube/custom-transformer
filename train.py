@@ -90,8 +90,7 @@ def train_model(config):
     
     initial_epoch = 0
     global_step = 0
-    if config["preload"]:
-        model_filename = get_file_weights_path(config, config["preload"])
+    if model_filename:= get_file_weights_path(config, config["preload"]):
         print(f"preloading model: {model_filename}")
         state = torch.load(model_filename)
         model.module.load_state_dict(state['model_state_dict'])
@@ -133,13 +132,12 @@ def train_model(config):
         run_validation(model.module, val_dataloader, config, device, lambda str: batch_iterator.write(str), tokenizer_src, tokenizer_tgt)
             
         model_filename = get_file_weights_path(config, f"{epoch:02d}")
-        if epoch % 5 == 0:
-            torch.save({
-                "epoch": epoch,
-                "model_state_dict": model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "global_step": global_step
-            }, model_filename)
+        torch.save({
+            "epoch": epoch,
+            "model_state_dict": model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "global_step": global_step
+        }, model_filename)
         
 if __name__ == "__main__":
     config = get_config()
