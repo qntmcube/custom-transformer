@@ -114,10 +114,7 @@ def train_model(config):
             label = batch["label"].to(device)
             
             # run data through model
-            
-            enc_output = model.encode(encoder_input, encoder_mask)
-            dec_output = model.decode(decoder_input, enc_output, decoder_mask, encoder_mask)
-            projection = model.project(dec_output)
+            projection = model(encoder_input, decoder_input, encoder_mask, decoder_mask)
             
             # combining seq_len and batch dimension
             loss = loss_fn(projection.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1))
