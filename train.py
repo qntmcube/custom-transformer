@@ -75,7 +75,14 @@ def train_model(config):
     Path(config["model_folder"]).mkdir(parents=True, exist_ok=True)
     
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
+    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size())
+    
+    if torch.cuda.device_count() > 1:
+        print(f"Let's use {torch.cuda.device_count()} GPUs!")
+        # This wraps the model to split the input batch across devices
+        model = nn.DataParallel(model)
+        
+    model.to(device)
     
     tb_writer = SummaryWriter(config["experiment_name"])
     
@@ -131,7 +138,7 @@ def train_model(config):
         model_filename = get_file_weights_path(config, f"{epoch:02d}")
         torch.save({
             "epoch": epoch,
-            "model_state_dict": model.state_dict(),
+            "model_state_dict": model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "global_step": global_step
         }, model_filename)
