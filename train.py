@@ -133,12 +133,13 @@ def train_model(config):
         run_validation(model, val_dataloader, config, device, lambda str: batch_iterator.write(str), tokenizer_src, tokenizer_tgt)
             
         model_filename = get_file_weights_path(config, f"{epoch:02d}")
-        torch.save({
-            "epoch": epoch,
-            "model_state_dict": model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "global_step": global_step
-        }, model_filename)
+        if epoch % 5 == 0:
+            torch.save({
+                "epoch": epoch,
+                "model_state_dict": model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "global_step": global_step
+            }, model_filename)
         
 if __name__ == "__main__":
     config = get_config()
