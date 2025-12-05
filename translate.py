@@ -27,7 +27,6 @@ if __name__ == "__main__":
     print(f"Using device {device}")
     
     config = get_config()
-
     
     tokenizer_src: Tokenizer = Tokenizer.from_file(str(Path(config['tokenizer_file'].format(config['lang_src']))))
     tokenizer_tgt: Tokenizer = Tokenizer.from_file(str(Path(config['tokenizer_file'].format(config['lang_tgt']))))
@@ -36,7 +35,7 @@ if __name__ == "__main__":
     
     model_filename = get_file_weights_path(config, config["preload"])
     print(f"loading model: {model_filename}")
-    state = torch.load(model_filename)
+    state = torch.load(model_filename, map_location=device)
     model.load_state_dict(state['model_state_dict'])
     
     model.eval()
